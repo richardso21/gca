@@ -8,6 +8,8 @@ uniform vec2 iResolution;
 uniform vec4 iMouse;
 uniform sampler2D iChannel0;
 
+const bool CUSTOM = true;
+
 float remap01(float inp, float inp_start, float inp_end) {
     return clamp((inp - inp_start) / (inp_end - inp_start), 0.0, 1.0);
 }
@@ -34,7 +36,7 @@ const vec2 gravity = vec2(0.0, -1);
 
 // Define n_rope rope particles and add one extra "mouse particle".
 const int MAX_PARTICLES = 20;
-const int MAX_SPRINGS = 20;
+const int MAX_SPRINGS = 30;
 
 //0: mouse particle
 //1...5: rope particles
@@ -44,9 +46,9 @@ Particle particles[MAX_PARTICLES];
 int nearest_particle(vec2 p) {
     int idx = 1;
     float min_dist = 1e9;
-    for (int i = 1; i < n_particles; i++) {
+    for(int i = 1; i < n_particles; i++) {
         float d = dist_sqr(p, particles[i].pos);
-        if (d < min_dist) {
+        if(d < min_dist) {
             min_dist = d;
             idx = i;
         }
@@ -69,7 +71,7 @@ int n_springs;
 int selected_particle = -1;
 int current_add_particle = -1;
 
-Spring add_spring(int a, int b, float inv_stiffness){
+Spring add_spring(int a, int b, float inv_stiffness) {
     Spring s;
     s.a = a;
     s.b = b;
@@ -78,34 +80,54 @@ Spring add_spring(int a, int b, float inv_stiffness){
     return s;
 }
 
-const int initial_particles = 6;
+const int initial_particles = CUSTOM ? 9 : 6;
 
-void init_state(void){
-    n_particles = 6;
-    n_springs = 5;
+void init_state(void) {
+    if(!CUSTOM) {
+        n_particles = 6;
+        n_springs = 5;
 
-    //particle 0 is the mouse particle and will be set later
-    particles[1].pos = vec2(-0.6, 0.5); 
-    particles[1].vel = vec2(0.0);
-    particles[2].pos = vec2(-0.3, 0.5); 
-    particles[2].vel = vec2(0.0);
-    particles[3].pos = vec2(-0, 0.5);
-    particles[3].vel = vec2(0.0);
-    particles[4].pos = vec2(0.3, 0.5);
-    particles[4].vel = vec2(0.0);
-    particles[5].pos = vec2(0.6, 0.5);
-    particles[5].vel = vec2(0.0);
+        //particle 0 is the mouse particle and will be set later
+        particles[1].pos = vec2(-0.6, 0.5);
+        particles[1].vel = vec2(0.0);
+        particles[2].pos = vec2(-0.3, 0.5);
+        particles[2].vel = vec2(0.0);
+        particles[3].pos = vec2(-0, 0.5);
+        particles[3].vel = vec2(0.0);
+        particles[4].pos = vec2(0.3, 0.5);
+        particles[4].vel = vec2(0.0);
+        particles[5].pos = vec2(0.6, 0.5);
+        particles[5].vel = vec2(0.0);
 
+        // Springs between adjacent rope particles
+        //spring 0 is the mouse particle to the first rope particle
+        springs[1] = add_spring(1, 2, 1.0 / 100.0); // first to second rope particle
+        springs[2] = add_spring(2, 3, 1.0 / 100.0); // second to third rope particle
+        springs[3] = add_spring(3, 4, 1.0 / 100.0); // third to fourth rope particle
+        springs[4] = add_spring(4, 5, 1.0 / 100.0); // fourth to fifth rope particle
+    } else {
+        n_particles = 9;
+        n_springs = 1;
+
+        particles[1].pos = vec2(-0.8, 0.5);
+        particles[2].pos = vec2(-0.65, 0.65);
+        particles[3].pos = vec2(-0.5, 0.8);
+        particles[4].pos = vec2(-0.35, 0.65);
+        particles[5].pos = vec2(-0.2, 0.5);
+        particles[6].pos = vec2(-0.35, 0.35);
+        particles[7].pos = vec2(-0.5, 0.2);
+        particles[8].pos = vec2(-0.65, 0.35);
+        for(int i = 1; i < 9; i++) particles[i].vel = vec2(0.0, 0.0);
+
+        for(int i = 1; i < 9; i++) {
+            int adj = (i + 1) > 8 ? 1 : (i + 1);
+            int across = (i + 4) > 8 ? (i + 4) % 9 + 1 : i + 4;
+            springs[n_springs++] = add_spring(i, adj, 0.);
+            springs[n_springs++] = add_spring(i, across, 0.);
+        }
+    }
     current_add_particle = initial_particles;
-
-    // Springs between adjacent rope particles
-    //spring 0 is the mouse particle to the first rope particle
-    springs[1] = add_spring(1, 2, 1.0 / 100.0); // first to second rope particle
-    springs[2] = add_spring(2, 3, 1.0 / 100.0); // second to third rope particle
-    springs[3] = add_spring(3, 4, 1.0 / 100.0); // third to fourth rope particle
-    springs[4] = add_spring(4, 5, 1.0 / 100.0); // fourth to fifth rope particle
 }
-
 
 vec2 screen_to_xy(vec2 coord) {
     return (coord - 0.5 * iResolution.xy) * 2.0 / iResolution.y;
@@ -134,47 +156,46 @@ void load_state() {
         particles[mouse_idx].is_fixed = true;
     }
     // Load other particles
-    for (int i = 1; i < n_particles; i++) {
+    for(int i = 1; i < n_particles; i++) {
         vec4 data = texelFetch(iChannel0, ivec2(i, 0), 0);
         particles[i].pos = data.xy;
         particles[i].vel = data.zw;
         particles[i].inv_mass = 1.0; // all particles have mass 1.0
         particles[i].is_fixed = false;
 
-        if(i==1 || i==5){
+        if(!CUSTOM && (i == 1 || i == 5)) {
             particles[i].inv_mass = 0.0; // fixed particles at the ends of the rope
             particles[i].is_fixed = true; // make sure the first and last particles are fixed
         }
     }
 
     //select nearest particle to mouse
-    if(iMouse.z == 1.){
-        if(selected_particle == -1){
+    if(iMouse.z == 1.) {
+        if(selected_particle == -1) {
             selected_particle = nearest_particle(particles[0].pos);
         }
-    }
-    else{
+    } else {
         selected_particle = -1;
     }
-    
-    if(iMouse.z == 2.){
+
+    if(iMouse.z == 2.) {
         particles[current_add_particle].pos = screen_to_xy(iMouse.xy); // update the position of the selected particle
         particles[current_add_particle].vel = vec2(0.0); // reset velocity to zero when mouse is released
         particles[current_add_particle].inv_mass = 1.0; // make sure the selected particle is fixed
         particles[current_add_particle].is_fixed = false; // make sure the selected particle is fixed
-        if(current_add_particle >= n_particles){
+        if(current_add_particle >= n_particles) {
             // If we reach the maximum number of particles, reset to the first available index.
             n_particles = current_add_particle + 1; // skip the mouse particle at index 0
         }
         current_add_particle++;
-        if(current_add_particle >= MAX_PARTICLES){
+        if(current_add_particle >= MAX_PARTICLES) {
             current_add_particle = initial_particles;
         }
     }
 
     //load springs
     springs[0] = Spring(0, selected_particle, 0.0, 1.0 / 100.0); // mouse particle to first rope particle
-    for (int i = 1; i < n_springs; i++) {
+    for(int i = 1; i < n_springs; i++) {
         vec4 data = texelFetch(iChannel0, ivec2(i, 1), 0);
         springs[i].a = int(data.x);
         springs[i].b = int(data.y);
@@ -183,12 +204,11 @@ void load_state() {
     }
 }
 
-
 /////////////////////////////////////////////////////
 //// Step 1.1: Computing the spring constraint
-//// This function calculates the deviation of a spring's length 
-//// from its rest length. The constraint is defined as L - L0, 
-//// This constraint is later used to adjust the positions of particles 
+//// This function calculates the deviation of a spring's length
+//// from its rest length. The constraint is defined as L - L0,
+//// This constraint is later used to adjust the positions of particles
 //// to enforce the spring constraint.
 /////////////////////////////////////////////////////
 float spring_constraint(Spring s) {
@@ -198,13 +218,13 @@ float spring_constraint(Spring s) {
     // and L0 = s.restLength is the rest length of the spring.
 
     //// Your implementation starts
-    return 0.;
+    return length(particles[s.a].pos - particles[s.b].pos) - s.restLength;
     //// Your implementation ends
 }
 
 /////////////////////////////////////////////////////
 //// Step 1.2: Computing the spring constraint gradient
-//// This function calculates the gradient of the spring constraint constraint 
+//// This function calculates the gradient of the spring constraint constraint
 //// for a spring a--b with respect to the position of a.
 /////////////////////////////////////////////////////
 vec2 spring_constraint_gradient(vec2 a, vec2 b) {
@@ -212,7 +232,7 @@ vec2 spring_constraint_gradient(vec2 a, vec2 b) {
     // Think: what is the gradient of (a-b) with respect to a?
 
     //// Your implementation starts
-    return vec2(0.);
+    return (length(a - b) == 0.0) ? vec2(0.0) : (a - b) / length(a - b);
     //// Your implementation ends
 }
 
@@ -229,19 +249,23 @@ vec2 spring_constraint_grad(Spring s, int particle_idx) {
 //// The Lagrangian multiplier update is calculated with lambda=(numer/denom)
 //// See the documentation for more details.
 /////////////////////////////////////////////////////
-void solve_spring(Spring s, float dt) {   
+void solve_spring(Spring s, float dt) {
     float numer = 0.;
     float denom = 0.;
 
     //// Your implementation starts
-    vec2 grad_a = vec2(0.); // only keep for the sake of the compiler
-    vec2 grad_b = vec2(0.); // only keep for the sake of the compiler
+    numer = -spring_constraint(s);
+    vec2 grad_a = spring_constraint_grad(s, s.a);
+    vec2 grad_b = spring_constraint_grad(s, s.b);
+    denom += particles[s.a].inv_mass * pow(length(grad_a), 2.);
+    denom += particles[s.b].inv_mass * pow(length(grad_b), 2.);
     //// Your implementation ends
 
     // PBD if you comment out the following line
     denom += s.inv_stiffness / (dt * dt);
-    
-    if (denom == 0.0) return;
+
+    if(denom == 0.0)
+        return;
     float lambda = numer / denom;
     particles[s.a].pos += lambda * particles[s.a].inv_mass * grad_a;
     particles[s.b].pos += lambda * particles[s.b].inv_mass * grad_b;
@@ -254,18 +278,17 @@ void solve_spring(Spring s, float dt) {
 //// The rest length of the spring is set to collision_dist.
 //// Otherwise return 0.0.
 /////////////////////////////////////////////////////
-float collision_constraint(vec2 a, vec2 b, float collision_dist){
+float collision_constraint(vec2 a, vec2 b, float collision_dist) {
     // Compute the distance between two particles a and b.
     // The constraint is defined as L - L0, where L is the current distance between a and b
     // and L0 = collision_dist is the minimum distance between a and b.
 
     float dist = length(a - b);
-    if(dist < collision_dist){
+    if(dist < collision_dist) {
         //// Your implementation starts
-        return 0.0;
+        return dist - collision_dist;
         //// Your implementation ends
-    }
-    else{
+    } else {
         return 0.0;
     }
 }
@@ -277,16 +300,15 @@ float collision_constraint(vec2 a, vec2 b, float collision_dist){
 //// It's similar to the spring constraint gradient.
 //// Otherwise return vec2(0.0, 0.0).
 /////////////////////////////////////////////////////
-vec2 collision_constraint_gradient(vec2 a, vec2 b, float collision_dist){
+vec2 collision_constraint_gradient(vec2 a, vec2 b, float collision_dist) {
     // Compute the gradient of the collision constraint with respect to a.
 
     float dist = length(a - b);
-    if(dist <= collision_dist){
+    if(dist < collision_dist) {
         //// Your implementation starts
-        return vec2(0.0);
+        return (a - b) / dist;
         //// Your implementation ends
-    }
-    else{
+    } else {
         return vec2(0.0, 0.0);
     }
 }
@@ -299,28 +321,35 @@ vec2 collision_constraint_gradient(vec2 a, vec2 b, float collision_dist){
 //// The Lagrangian multiplier update is calculated with lambda=(numer/denom)
 //// See the documentation for more details.
 /////////////////////////////////////////////////////
-void solve_collision_constraint(int i, int j, float collision_dist, float dt){
+void solve_collision_constraint(int i, int j, float collision_dist, float dt) {
     // Compute the collision constraint for particles i and j.
     float numer = 0.0;
     float denom = 0.0;
 
     //// Your implementation starts
-    vec2 grad = vec2(0); // only keep for the sake of the compiler
+    numer = -collision_constraint(particles[i].pos, particles[j].pos, collision_dist);
+    vec2 grad = collision_constraint_gradient(particles[i].pos, particles[j].pos, collision_dist);
+    denom += particles[i].inv_mass * pow(length(grad), 2.);
+    denom += particles[j].inv_mass * pow(length(grad), 2.);
     //// Your implementation ends
 
     //PBD if you comment out the following line, which is faster
     denom += (1. / 1000.) / (dt * dt);
 
-    if (denom == 0.0) return;
+    if(denom == 0.0)
+        return;
     float lambda = numer / denom;
     particles[i].pos += lambda * particles[i].inv_mass * grad;
     particles[j].pos -= lambda * particles[j].inv_mass * grad;
 }
 
-float phi(vec2 p){
+float phi(vec2 p) {
     const float PI = 3.14159265359;
     //let's do sin(x)+0.5
-    return p.y - (0.1 * sin(p.x * 2. * PI) - 0.5);
+    if(!CUSTOM)
+        return p.y - (0.1 * sin(p.x * 2. * PI) - 0.5);
+    else
+        return p.y - (0.1 * sin(p.x * 2. * PI + 2. * sin(iTime * 2.)) - 0.5);
 }
 
 /////////////////////////////////////////////////////
@@ -330,34 +359,31 @@ float phi(vec2 p){
 //// The constraint is defined as phi(p) - ground_collision_dist.
 //// Otherwise return 0.0.
 /////////////////////////////////////////////////////
-float ground_constraint(vec2 p, float ground_collision_dist){
-    if(phi(p) < ground_collision_dist){
+float ground_constraint(vec2 p, float ground_collision_dist) {
+    if(phi(p) < ground_collision_dist) {
         //// Your implementation starts
-        return 0.0;
+        return phi(p) - ground_collision_dist;
         //// Your implementation ends
-    }
-    else{
+    } else {
         return 0.0;
-    }    
+    }
 }
 
 /////////////////////////////////////////////////////
 //// Step 3.2: Computing the ground constraint gradient
-//// If phi(p) < ground_collision_dist, 
+//// If phi(p) < ground_collision_dist,
 //// compute the gradient of the ground constraint.
 //// Otherwise return vec2(0.0, 0.0).
 /////////////////////////////////////////////////////
-vec2 ground_constraint_gradient(vec2 p, float ground_collision_dist){
+vec2 ground_constraint_gradient(vec2 p, float ground_collision_dist) {
     // Compute the gradient of the ground constraint with respect to p.
 
-    if(phi(p) < ground_collision_dist){
+    if(phi(p) < ground_collision_dist) {
         //// Your implementation starts
-
-        return vec2(0.0);
-        
+        const float PI = 3.14159265359;
+        return vec2((-0.1 * 2. * PI * cos(2. * PI * p.x)), 1.0);
         //// Your implementation ends
-    }
-    else{
+    } else {
         return vec2(0.0, 0.0);
     }
 }
@@ -370,21 +396,50 @@ vec2 ground_constraint_gradient(vec2 p, float ground_collision_dist){
 //// The Lagrangian multiplier update is calculated with lambda=(numer/denom)
 //// See the documentation for more details.
 /////////////////////////////////////////////////////
-void solve_ground_constraint(int i, float ground_collision_dist, float dt){
+void solve_ground_constraint(int i, float ground_collision_dist, float dt) {
     // Compute the ground constraint for particle i.
     float numer = 0.0;
     float denom = 0.0;
 
     //// Your implementation starts
-    vec2 grad = vec2(0.); // only keep for the sake of the compiler
-
-
+    // vec2 grad = vec2(0.); // only keep for the sake of the compiler
+    vec2 grad = ground_constraint_gradient(particles[i].pos, ground_collision_dist);
+    numer = -ground_constraint(particles[i].pos, ground_collision_dist);
+    denom += particles[i].inv_mass * pow(length(grad), 2.);
     //// Your implementation ends
 
     //PBD if you comment out the following line, which is faster
     denom += (1. / 1000.) / (dt * dt);
 
-    if (denom == 0.0) return;
+    if(denom == 0.0)
+        return;
+    float lambda = numer / denom;
+    particles[i].pos += lambda * particles[i].inv_mass * grad;
+}
+
+float boundary_constraint(vec2 p, vec2 bound) {
+    float dist_x = max(abs(p.x) - bound.x, 0.0);
+    float dist_y = max(abs(p.y) - bound.y, 0.0);
+    return max(dist_x, dist_y);
+}
+vec2 boundary_constraint_gradient(vec2 p, vec2 bound) {
+    vec2 grad = vec2(0.0);
+    if(abs(p.x) > bound.x) {
+        grad.x = sign(p.x);
+    }
+    if(abs(p.y) > bound.y) {
+        grad.y = sign(p.y);
+    }
+    return grad;
+}
+void solve_boundary_constraint(int i, vec2 bound, float dt) {
+    float numer = -boundary_constraint(particles[i].pos, bound);
+    vec2 grad = boundary_constraint_gradient(particles[i].pos, bound);
+    float denom = particles[i].inv_mass * dot(grad, grad);
+    denom += (1.0 / 1000.0) / (dt * dt);
+
+    if(denom == 0.0)
+        return;
     float lambda = numer / denom;
     particles[i].pos += lambda * particles[i].inv_mass * grad;
 }
@@ -398,16 +453,26 @@ void solve_ground_constraint(int i, float ground_collision_dist, float dt){
 /////////////////////////////////////////////////////
 void solve_constraints(float dt) {
     //If left mouse is pressed, calculate the spring constraint for the mouse particle to the first rope particle.
-    if(iMouse.z == 1.){
+    if(iMouse.z == 1.) {
         solve_spring(springs[0], dt); // mouse particle to first rope particle
     }
 
     // Solve all constraints
 
     //// Your implementation starts
-
-    
-
+    for(int i = 1; i < n_springs; i++) {
+        solve_spring(springs[i], dt);
+    }
+    for(int i = 1; i < n_particles; i++) {
+        for(int j = i + 1; j < n_particles; j++) {
+            solve_collision_constraint(i, j, collision_dist, dt);
+        }
+    }
+    for(int i = 1; i < n_particles; i++) {
+        solve_ground_constraint(i, ground_collision_dist, dt);
+        if(CUSTOM)
+            solve_boundary_constraint(i, vec2(1.5, 0.9), dt);
+    }
     //// Your implementation ends
 }
 
@@ -424,16 +489,15 @@ vec3 render_scene(vec2 pixel_xy) {
     float phi = phi(pixel_xy);
     vec3 col;
     if(phi < 0.0) {
-        col =  vec3(122, 183, 0) / 255.; // ground color
-    }
-    else{
+        col = vec3(122, 183, 0) / 255.; // ground color
+    } else {
         col = vec3(229, 242, 250) / 255.; // background color
     }
-    
+
     float pixel_size = 2.0 / iResolution.y;
-    
+
     // If still initializing, return the background color.
-    if (is_initializing()) {
+    if(is_initializing()) {
         return col;
     }
 
@@ -441,11 +505,11 @@ vec3 render_scene(vec2 pixel_xy) {
     {
         float min_dist = 1e9;
 
-        if(iMouse.z == 1.){
+        if(iMouse.z == 1.) {
             min_dist = dist_sqr(pixel_xy, particles[0].pos);
         }
 
-        for (int i = 1; i < n_particles; i++){
+        for(int i = 1; i < n_particles; i++) {
             min_dist = min(min_dist, dist_sqr(pixel_xy, particles[i].pos));
         }
         min_dist = sqrt(min_dist);
@@ -453,23 +517,23 @@ vec3 render_scene(vec2 pixel_xy) {
         const float radius = 0.1;
         col = mix(col, vec3(180, 164, 105) / 255., remap01(min_dist, radius, radius - pixel_size));
     }
-    
+
     // Render All springs
     {
         float min_dist = 1e9;
 
-        if(iMouse.z == 1.){
+        if(iMouse.z == 1.) {
             min_dist = dist_to_segment(pixel_xy, particles[0].pos, particles[selected_particle].pos);
         }
 
-        for (int i = 1; i < n_springs; i++) {
+        for(int i = 1; i < n_springs; i++) {
             int a = springs[i].a;
             int b = springs[i].b;
             min_dist = min(min_dist, dist_to_segment(pixel_xy, particles[a].pos, particles[b].pos));
         }
 
         const float thickness = 0.01;
-        
+
         col = mix(col, vec3(14, 105, 146) / 255., 0.25 * remap01(min_dist, thickness, thickness - pixel_size));
     }
 
@@ -477,32 +541,27 @@ vec3 render_scene(vec2 pixel_xy) {
     return col;
 }
 
-vec4 output_color(vec2 pixel_ij){
+vec4 output_color(vec2 pixel_ij) {
     int i = int(pixel_ij.x);
     int j = int(pixel_ij.y);
-    
-    if(j == 0){
+
+    if(j == 0) {
         // (0,0): (num_particles, num_springs, selected_particle)
-        if(i==0){
+        if(i == 0) {
             return vec4(float(n_particles), float(n_springs), float(selected_particle), float(current_add_particle));
-        }
-        else if(i < n_particles){
+        } else if(i < n_particles) {
             //a particle
             return vec4(particles[i].pos, particles[i].vel);
-        }
-        else{
+        } else {
             return vec4(0.0, 0.0, 0.0, 1.0);
         }
-    }
-    else if(j == 1){
-        if(i < n_springs){
+    } else if(j == 1) {
+        if(i < n_springs) {
             return vec4(float(springs[i].a), float(springs[i].b), springs[i].restLength, springs[i].inv_stiffness);
-        }
-        else{
+        } else {
             return vec4(0.0, 0.0, 0.0, 1.0);
         }
-    }
-    else{
+    } else {
         vec2 pixel_xy = screen_to_xy(pixel_ij);
         vec3 color = render_scene(pixel_xy);
         return vec4(color, 1.0);
@@ -516,22 +575,22 @@ void main() {
     int pixel_i = int(pixel_ij.x);
     int pixel_j = int(pixel_ij.y);
 
-    if(is_initializing()){
+    if(is_initializing()) {
         init_state();
-    }
-    else{
+    } else {
         load_state();
-        if (pixel_j == 0) {
-            if (pixel_i >= n_particles) return;
+        if(pixel_j == 0) {
+            if(pixel_i >= n_particles)
+                return;
 
             float actual_dt = min(iTimeDelta, 0.02);
             const int n_steps = 5;
             float dt = actual_dt / float(n_steps);
 
-            for (int i = 0; i < n_steps; i++) {
+            for(int i = 0; i < n_steps; i++) {
                 // Update rope particles only; skip updating the mouse particle since it's fixed.
-                for (int j = 0; j < n_particles; j++) {
-                    if (!particles[j].is_fixed)
+                for(int j = 0; j < n_particles; j++) {
+                    if(!particles[j].is_fixed)
                         particles[j].vel += dt * gravity;
                     particles[j].vel *= exp(-damp * dt);
                     particles[j].pos_prev = particles[j].pos;
@@ -539,8 +598,8 @@ void main() {
                 }
                 solve_constraints(dt);
                 // Update velocities for rope particles only.
-                for (int j = 0; j < n_particles; j++) {
-                    if (!particles[j].is_fixed){
+                for(int j = 0; j < n_particles; j++) {
+                    if(!particles[j].is_fixed) {
                         particles[j].vel = (particles[j].pos - particles[j].pos_prev) / dt;
                     }
                 }

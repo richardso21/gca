@@ -1,0 +1,6 @@
+I felt like the idea of gaussian splatting is very intuitive; you're trying to
+repaint a scene just with a bunch of small blobs you get to control, such as
+their shape, size, and color. Since the theme is Art of Points, I decided to
+train the gaussian parameters on another famous art piece, the Starry Night by
+Van Gogh. At the end, the only tricky part was figuring out the gotchas with
+implementing the matrix equations in GLSL, but otherwise I liked the assignment!

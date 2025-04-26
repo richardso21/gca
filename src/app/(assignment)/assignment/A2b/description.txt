@@ -1,0 +1,11 @@
+Implementing the volume rendering for training the NeRF model was a little
+tricky due to the dimensions of the tensors, but was mostly straightforward.
+I was also able to borrow a lot of code from my previous assignment for the
+volume rendering method on the GLSL file.
+
+For my creative expression, I decided to train a NeRF model on the drum set.
+However, my twist was to phase the drum back and forth with the lego model in
+the scene over time. I got this idea since I was trying to render both at once,
+but my computer was lagging so much that I had to devise a way to include both
+models in my scene. I used the mix() function to blend the models together,
+along with a mixing parameter dependent on sine and iTime.

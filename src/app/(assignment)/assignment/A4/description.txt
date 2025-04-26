@@ -1,0 +1,7 @@
+In my opinion, this was the assignment that I had the most fun with. The
+concepts and the mathematical equations seemed to click with me a lot more for
+this unit. For my custom implementation, I decided to add extra constraints
+bordering the camera FOV since I was upset to see particles get flung off the
+screen, never to be seen again. To do this, I essentially duplicated the logic
+from the ground constraints, treating the boundaries of the scene as an
+invisible flat constraint which would deflect particles back into the scene.
