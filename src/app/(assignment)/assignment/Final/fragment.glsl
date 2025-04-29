@@ -1,3 +1,5 @@
+#define ARR_COPY(dst, src, n) for (int i = 0; i < n; i++) dst[i] = src[i];
+
 precision highp float;
 varying vec2 vUv; // UV (screen) coordinates in [0,1]^2
 
@@ -18,34 +20,35 @@ float dist_sqr(vec2 a, vec2 b) {
     return dot(diff, diff);
 }
 
+const int MAX_GAUSSIANS = 50;
 //======================================================= Copy-Paste Area Begin =========================================================
 // Bird
-// // Number of Gaussians
-const int NUM_GAUSSIANS = 20;
+// Number of Gaussians
+const int NUM_GAUSSIANS_0 = 20;
 // Dimensions [x_min, x_max, y_min, y_max]
-float dim[4] = float[4](-5.0, 5.0, -5.0, 5.0);
+float dim_0[4] = float[4](-5.0, 5.0, -5.0, 5.0);
 // Centers (x, y coordinates)
-vec2 gauss_centers[NUM_GAUSSIANS] = vec2[NUM_GAUSSIANS](vec2(1.23, 3.42), vec2(-0.43, 2.30), vec2(-2.52, 1.02), vec2(1.71, 0.68), vec2(-2.59, 0.37), vec2(3.49, -0.93), vec2(-1.96, -3.18), vec2(0.01, 2.66), vec2(1.00, -4.21), vec2(2.69, -2.27), vec2(-0.48, 4.33), vec2(0.62, -2.40), vec2(-0.48, -1.44), vec2(1.09, -0.97), vec2(2.49, -0.87), vec2(-1.77, -2.78), vec2(1.44, -0.71), vec2(-1.20, -4.21), vec2(-0.31, -3.21), vec2(-1.25, 0.10));
+const vec2 gauss_centers_0[NUM_GAUSSIANS_0] = vec2[NUM_GAUSSIANS_0](vec2(1.23, 3.42), vec2(-0.43, 2.30), vec2(-2.52, 1.02), vec2(1.71, 0.68), vec2(-2.59, 0.37), vec2(3.49, -0.93), vec2(-1.96, -3.18), vec2(0.01, 2.66), vec2(1.00, -4.21), vec2(2.69, -2.27), vec2(-0.48, 4.33), vec2(0.62, -2.40), vec2(-0.48, -1.44), vec2(1.09, -0.97), vec2(2.49, -0.87), vec2(-1.77, -2.78), vec2(1.44, -0.71), vec2(-1.20, -4.21), vec2(-0.31, -3.21), vec2(-1.25, 0.10));
 // Sigmas (scales)
-vec2 gauss_sigmas[NUM_GAUSSIANS] = vec2[NUM_GAUSSIANS](vec2(3.51, 0.43), vec2(4.65, 1.86), vec2(2.42, 3.31), vec2(1.50, 0.85), vec2(1.92, 0.69), vec2(0.77, 0.41), vec2(1.66, 0.80), vec2(2.83, 0.91), vec2(1.46, 0.55), vec2(1.60, 0.95), vec2(2.27, 3.23), vec2(1.48, 2.09), vec2(1.98, 0.91), vec2(0.70, 0.51), vec2(3.27, 1.53), vec2(2.82, 2.23), vec2(2.46, 1.65), vec2(1.58, 2.62), vec2(0.63, 1.56), vec2(4.09, 1.14));
+const vec2 gauss_sigmas_0[NUM_GAUSSIANS_0] = vec2[NUM_GAUSSIANS_0](vec2(3.51, 0.43), vec2(4.65, 1.86), vec2(2.42, 3.31), vec2(1.50, 0.85), vec2(1.92, 0.69), vec2(0.77, 0.41), vec2(1.66, 0.80), vec2(2.83, 0.91), vec2(1.46, 0.55), vec2(1.60, 0.95), vec2(2.27, 3.23), vec2(1.48, 2.09), vec2(1.98, 0.91), vec2(0.70, 0.51), vec2(3.27, 1.53), vec2(2.82, 2.23), vec2(2.46, 1.65), vec2(1.58, 2.62), vec2(0.63, 1.56), vec2(4.09, 1.14));
 // Rotation angles (thetas)
-float gauss_thetas[NUM_GAUSSIANS] = float[NUM_GAUSSIANS](-0.79, -1.42, -0.83, -0.15, 1.19, 0.06, 2.20, -0.73, 0.10, 0.12, 1.71, -2.84, -1.38, -0.43, -0.32, 2.23, 3.14, 0.77, 1.88, 1.18);
+const float gauss_thetas_0[NUM_GAUSSIANS_0] = float[NUM_GAUSSIANS_0](-0.79, -1.42, -0.83, -0.15, 1.19, 0.06, 2.20, -0.73, 0.10, 0.12, 1.71, -2.84, -1.38, -0.43, -0.32, 2.23, 3.14, 0.77, 1.88, 1.18);
 // Colors (RGB)
-vec3 gauss_colors[NUM_GAUSSIANS] = vec3[NUM_GAUSSIANS](vec3(0.84, -0.03, 0.19), vec3(-1.46, 0.18, -0.33), vec3(0.33, 0.08, 0.02), vec3(1.33, 0.23, 0.47), vec3(0.94, -0.06, 0.18), vec3(0.87, 0.92, 1.09), vec3(1.22, 0.13, 0.38), vec3(1.11, -0.10, 0.27), vec3(1.35, 1.47, 1.13), vec3(1.79, 1.11, 0.44), vec3(0.14, -0.10, 0.05), vec3(0.31, -1.21, -0.39), vec3(1.63, 0.31, 0.59), vec3(1.63, 1.35, 1.51), vec3(-0.57, -1.11, -0.22), vec3(-0.42, 0.24, 0.31), vec3(-0.29, 0.99, -0.17), vec3(-0.78, -0.63, -0.78), vec3(0.50, 1.30, 0.92), vec3(1.01, -0.01, 0.20));
+const vec3 gauss_colors_0[NUM_GAUSSIANS_0] = vec3[NUM_GAUSSIANS_0](vec3(0.84, -0.03, 0.19), vec3(-1.46, 0.18, -0.33), vec3(0.33, 0.08, 0.02), vec3(1.33, 0.23, 0.47), vec3(0.94, -0.06, 0.18), vec3(0.87, 0.92, 1.09), vec3(1.22, 0.13, 0.38), vec3(1.11, -0.10, 0.27), vec3(1.35, 1.47, 1.13), vec3(1.79, 1.11, 0.44), vec3(0.14, -0.10, 0.05), vec3(0.31, -1.21, -0.39), vec3(1.63, 0.31, 0.59), vec3(1.63, 1.35, 1.51), vec3(-0.57, -1.11, -0.22), vec3(-0.42, 0.24, 0.31), vec3(-0.29, 0.99, -0.17), vec3(-0.78, -0.63, -0.78), vec3(0.50, 1.30, 0.92), vec3(1.01, -0.01, 0.20));
 
 // Pig
-// // Number of Gaussians
-// const int NUM_GAUSSIANS = 30;
-// // Dimensions [x_min, x_max, y_min, y_max]
-// float dim[4] = float[4](-5.0,5.0,-5.0,5.0);
-// // Centers (x, y coordinates)
-// vec2 gauss_centers[NUM_GAUSSIANS] = vec2[NUM_GAUSSIANS](vec2(-0.83, 0.73),vec2(4.04, 0.55),vec2(-0.64, -1.24),vec2(3.33, -0.76),vec2(1.08, -0.96),vec2(-3.55, 1.41),vec2(-3.79, -0.83),vec2(-0.82, -1.20),vec2(1.70, 2.09),vec2(2.21, 2.42),vec2(-3.00, 3.64),vec2(-0.39, 1.87),vec2(-3.75, -0.83),vec2(3.02, -0.75),vec2(-1.63, -0.33),vec2(-0.40, -2.11),vec2(2.98, 1.36),vec2(-0.86, 3.34),vec2(0.66, 4.30),vec2(-0.95, 0.84),vec2(-2.49, -3.26),vec2(1.65, -3.44),vec2(0.65, 0.50),vec2(-0.59, 2.94),vec2(-3.76, -0.09),vec2(0.68, 0.84),vec2(-2.59, 1.03),vec2(3.04, -0.76),vec2(-0.53, -0.55),vec2(2.29, 2.43));
-// // Sigmas (scales)
-// vec2 gauss_sigmas[NUM_GAUSSIANS] = vec2[NUM_GAUSSIANS](vec2(0.09, -0.63),vec2(0.86, 0.17),vec2(0.41, 0.50),vec2(0.17, 0.17),vec2(-0.59, 0.32),vec2(0.28, 1.44),vec2(0.55, 0.66),vec2(-0.58, 0.77),vec2(1.45, 0.42),vec2(-0.14, -0.61),vec2(0.48, 0.31),vec2(0.65, 1.39),vec2(0.26, 0.31),vec2(0.78, 0.71),vec2(0.48, -0.86),vec2(0.57, 1.29),vec2(0.27, 0.08),vec2(-1.22, 0.13),vec2(0.43, 0.54),vec2(2.58, 0.34),vec2(1.65, 0.50),vec2(1.69, 0.59),vec2(0.43, -0.08),vec2(0.35, 1.07),vec2(3.64, 1.00),vec2(0.01, -0.00),vec2(1.30, 0.73),vec2(1.05, 0.88),vec2(-0.53, 1.40),vec2(0.88, 0.18));
-// // Rotation angles (thetas)
-// float gauss_thetas[NUM_GAUSSIANS] = float[NUM_GAUSSIANS](-1.47,-1.14,0.35,-0.84,-1.40,-0.61,-0.20,-2.16,-0.63,1.00,0.48,1.46,-0.20,2.11,-0.77,-1.56,-0.16,0.18,-1.34,0.04,-0.40,0.27,-0.47,-1.48,0.80,-0.01,1.13,-0.88,2.12,-0.58);
-// // Colors (RGB)
-// vec3 gauss_colors[NUM_GAUSSIANS] = vec3[NUM_GAUSSIANS](vec3(-0.23, -0.46, -0.24),vec3(0.31, 0.65, 0.19),vec3(2.01, 2.50, -0.24),vec3(-1.65, -1.38, -1.71),vec3(0.57, 0.67, -0.08),vec3(0.32, 0.67, 0.22),vec3(2.32, 2.29, 2.50),vec3(-2.14, -2.70, 0.23),vec3(0.31, 0.64, 0.20),vec3(-0.67, -1.35, -0.48),vec3(0.50, 1.09, 0.33),vec3(0.52, 1.02, 0.41),vec3(-2.26, -2.30, -2.41),vec3(0.81, -1.23, 1.33),vec3(0.95, 1.21, -0.08),vec3(1.10, 1.52, -0.03),vec3(-0.24, -0.49, -0.23),vec3(0.31, 0.59, 0.24),vec3(0.53, 1.08, 0.39),vec3(0.16, 0.40, 0.19),vec3(0.44, 1.01, 0.34),vec3(0.50, 1.08, 0.36),vec3(-0.33, -0.48, -0.16),vec3(0.40, 0.72, 0.32),vec3(-0.33, -0.39, -0.38),vec3(-0.05, 0.72, 0.04),vec3(0.61, 0.98, 0.53),vec3(0.52, 2.30, 0.06),vec3(0.86, 1.21, 0.01),vec3(0.88, 1.81, 0.62));
+// Number of Gaussians
+const int NUM_GAUSSIANS_1 = 30;
+// Dimensions [x_min, x_max, y_min, y_max]
+const float dim_1[4] = float[4](-5.0, 5.0, -5.0, 5.0);
+// Centers (x, y coordinates)
+const vec2 gauss_centers_1[NUM_GAUSSIANS_1] = vec2[NUM_GAUSSIANS_1](vec2(-0.83, 0.73), vec2(4.04, 0.55), vec2(-0.64, -1.24), vec2(3.33, -0.76), vec2(1.08, -0.96), vec2(-3.55, 1.41), vec2(-3.79, -0.83), vec2(-0.82, -1.20), vec2(1.70, 2.09), vec2(2.21, 2.42), vec2(-3.00, 3.64), vec2(-0.39, 1.87), vec2(-3.75, -0.83), vec2(3.02, -0.75), vec2(-1.63, -0.33), vec2(-0.40, -2.11), vec2(2.98, 1.36), vec2(-0.86, 3.34), vec2(0.66, 4.30), vec2(-0.95, 0.84), vec2(-2.49, -3.26), vec2(1.65, -3.44), vec2(0.65, 0.50), vec2(-0.59, 2.94), vec2(-3.76, -0.09), vec2(0.68, 0.84), vec2(-2.59, 1.03), vec2(3.04, -0.76), vec2(-0.53, -0.55), vec2(2.29, 2.43));
+// Sigmas (scales)
+const vec2 gauss_sigmas_1[NUM_GAUSSIANS_1] = vec2[NUM_GAUSSIANS_1](vec2(0.09, -0.63), vec2(0.86, 0.17), vec2(0.41, 0.50), vec2(0.17, 0.17), vec2(-0.59, 0.32), vec2(0.28, 1.44), vec2(0.55, 0.66), vec2(-0.58, 0.77), vec2(1.45, 0.42), vec2(-0.14, -0.61), vec2(0.48, 0.31), vec2(0.65, 1.39), vec2(0.26, 0.31), vec2(0.78, 0.71), vec2(0.48, -0.86), vec2(0.57, 1.29), vec2(0.27, 0.08), vec2(-1.22, 0.13), vec2(0.43, 0.54), vec2(2.58, 0.34), vec2(1.65, 0.50), vec2(1.69, 0.59), vec2(0.43, -0.08), vec2(0.35, 1.07), vec2(3.64, 1.00), vec2(0.01, -0.00), vec2(1.30, 0.73), vec2(1.05, 0.88), vec2(-0.53, 1.40), vec2(0.88, 0.18));
+// Rotation angles (thetas)
+const float gauss_thetas_1[NUM_GAUSSIANS_1] = float[NUM_GAUSSIANS_1](-1.47, -1.14, 0.35, -0.84, -1.40, -0.61, -0.20, -2.16, -0.63, 1.00, 0.48, 1.46, -0.20, 2.11, -0.77, -1.56, -0.16, 0.18, -1.34, 0.04, -0.40, 0.27, -0.47, -1.48, 0.80, -0.01, 1.13, -0.88, 2.12, -0.58);
+// Colors (RGB)
+const vec3 gauss_colors_1[NUM_GAUSSIANS_1] = vec3[NUM_GAUSSIANS_1](vec3(-0.23, -0.46, -0.24), vec3(0.31, 0.65, 0.19), vec3(2.01, 2.50, -0.24), vec3(-1.65, -1.38, -1.71), vec3(0.57, 0.67, -0.08), vec3(0.32, 0.67, 0.22), vec3(2.32, 2.29, 2.50), vec3(-2.14, -2.70, 0.23), vec3(0.31, 0.64, 0.20), vec3(-0.67, -1.35, -0.48), vec3(0.50, 1.09, 0.33), vec3(0.52, 1.02, 0.41), vec3(-2.26, -2.30, -2.41), vec3(0.81, -1.23, 1.33), vec3(0.95, 1.21, -0.08), vec3(1.10, 1.52, -0.03), vec3(-0.24, -0.49, -0.23), vec3(0.31, 0.59, 0.24), vec3(0.53, 1.08, 0.39), vec3(0.16, 0.40, 0.19), vec3(0.44, 1.01, 0.34), vec3(0.50, 1.08, 0.36), vec3(-0.33, -0.48, -0.16), vec3(0.40, 0.72, 0.32), vec3(-0.33, -0.39, -0.38), vec3(-0.05, 0.72, 0.04), vec3(0.61, 0.98, 0.53), vec3(0.52, 2.30, 0.06), vec3(0.86, 1.21, 0.01), vec3(0.88, 1.81, 0.62));
 //======================================================= Copy-Paste Area End =========================================================
 
 // This function builds the inverse covariance matrix
@@ -148,25 +151,19 @@ void init_state(void) {
         springs[3] = add_spring(3, 4, 1.0 / 100.0); // third to fourth rope particle
         springs[4] = add_spring(4, 5, 1.0 / 100.0); // fourth to fifth rope particle
     } else {
-        n_particles = 9;
-        n_springs = 1;
+        // TODO: add initial states
+        n_particles = 4;
+        particles[1].pos = vec2(-1., 0.25);
+        particles[1].vel = vec2(0.);
+        particles[2].pos = vec2(-1.25, .5);
+        particles[2].vel = vec2(0.);
+        particles[3].pos = vec2(-0.75, 0.);
+        particles[3].vel = vec2(0.);
 
-        particles[1].pos = vec2(-0.8, 0.5);
-        particles[2].pos = vec2(-0.65, 0.65);
-        particles[3].pos = vec2(-0.5, 0.8);
-        particles[4].pos = vec2(-0.35, 0.65);
-        particles[5].pos = vec2(-0.2, 0.5);
-        particles[6].pos = vec2(-0.35, 0.35);
-        particles[7].pos = vec2(-0.5, 0.2);
-        particles[8].pos = vec2(-0.65, 0.35);
-        for(int i = 1; i < 9; i++) particles[i].vel = vec2(0.0, 0.0);
+        n_springs = 3;
+        springs[1] = add_spring(1, 2, 1.0 / 1000.0);
+        springs[2] = add_spring(1, 3, 1.0 / 1000.0);
 
-        for(int i = 1; i < 9; i++) {
-            int adj = (i + 1) > 8 ? 1 : (i + 1);
-            int across = (i + 4) > 8 ? (i + 4) % 9 + 1 : i + 4;
-            springs[n_springs++] = add_spring(i, adj, 0.);
-            springs[n_springs++] = add_spring(i, across, 0.);
-        }
     }
     current_add_particle = initial_particles;
 }
@@ -205,9 +202,9 @@ void load_state() {
         particles[i].inv_mass = 1.0; // all particles have mass 1.0
         particles[i].is_fixed = false;
 
-        if(!CUSTOM && (i == 1 || i == 5)) {
-            // particles[i].inv_mass = 0.0; // fixed particles at the ends of the rope
-            // particles[i].is_fixed = true; // make sure the first and last particles are fixed
+        if(!CUSTOM && (i == 1 || i == 5) || CUSTOM && (i == 2 || i == 3)) {
+            particles[i].inv_mass = 0.0; // fixed particles at the ends of the rope
+            particles[i].is_fixed = true; // make sure the first and last particles are fixed
         }
     }
 
@@ -236,7 +233,7 @@ void load_state() {
     }
 
     //load springs
-    springs[0] = Spring(0, selected_particle, 0.0, 1.0 / 100.0); // mouse particle to first rope particle
+    springs[0] = Spring(0, selected_particle, 0.0, 1.0 / 1000.0); // mouse particle to first rope particle
     for(int i = 1; i < n_springs; i++) {
         vec4 data = texelFetch(iChannel0, ivec2(i, 1), 0);
         springs[i].a = int(data.x);
@@ -323,7 +320,7 @@ float phi(vec2 p) {
     if(!CUSTOM)
         return p.y - (0.1 * sin(p.x * 2. * PI) - 0.5);
     else
-        return p.y - (0.1 * sin(p.x * 2. * PI + 2. * sin(iTime * 2.)) - 0.5);
+        return p.y + 0.5;
 }
 
 float ground_constraint(vec2 p, float ground_collision_dist) {
@@ -417,8 +414,32 @@ float dist_to_segment(vec2 p, vec2 a, vec2 b) {
     return length(pa - h * ba);
 }
 
-vec3 gaussianImage(in vec2 fragCoord) {
-    // NOTE: Use to change position and scaling of the gaussian
+vec3 gaussianImage(in vec2 fragCoord, in int image_idx) {
+    // select correct gaussian parameters to draw
+    int NUM_GAUSSIANS;
+    float dim[4];
+    vec2 gauss_centers[MAX_GAUSSIANS];
+    vec2 gauss_sigmas[MAX_GAUSSIANS];
+    float gauss_thetas[MAX_GAUSSIANS];
+    vec3 gauss_colors[MAX_GAUSSIANS];
+
+    if(image_idx == 0) {
+        NUM_GAUSSIANS = NUM_GAUSSIANS_0;
+        dim = dim_0;
+        ARR_COPY(gauss_centers, gauss_centers_0, NUM_GAUSSIANS);
+        ARR_COPY(gauss_sigmas, gauss_sigmas_0, NUM_GAUSSIANS);
+        ARR_COPY(gauss_thetas, gauss_thetas_0, NUM_GAUSSIANS);
+        ARR_COPY(gauss_colors, gauss_colors_0, NUM_GAUSSIANS);
+    } else if(image_idx == 1) {
+        NUM_GAUSSIANS = NUM_GAUSSIANS_1;
+        dim = dim_1;
+        ARR_COPY(gauss_centers, gauss_centers_1, NUM_GAUSSIANS);
+        ARR_COPY(gauss_sigmas, gauss_sigmas_1, NUM_GAUSSIANS);
+        ARR_COPY(gauss_thetas, gauss_thetas_1, NUM_GAUSSIANS);
+        ARR_COPY(gauss_colors, gauss_colors_1, NUM_GAUSSIANS);
+    }
+
+    // change scaling of the gaussian according to the screen's resolution
     float scale = 2.5 / iResolution.y;
     dim[0] = dim[0] * (1. / scale);  // x_min
     dim[1] = dim[1] * (1. / scale);  // x_max
@@ -439,17 +460,6 @@ vec3 gaussianImage(in vec2 fragCoord) {
     }
 
     vec3 color = vec3(0.0);
-
-    // Draw bounding box
-    // float edge = 0.01;
-    // if(uv.x > dim[0] - edge && uv.x < dim[0] + edge ||
-    //     uv.x > dim[1] - edge && uv.x < dim[1] + edge ||
-    //     ((uv.y > dim[2] - edge && uv.y < dim[2] + edge || uv.y > dim[3] - edge && uv.y < dim[3] + edge) && uv.x > dim[0] && uv.x < dim[1])) {
-    //     color = vec3(1.0, 1.0, 1.0);
-    // }
-    // uv += smoothstep(0.0, 1.0, cos(iTime)) * cos(iTime + 100.0 * uv.xy) * 3.;
-
-    // Animate the Gaussian centers
 
     for(int i = 0; i < NUM_GAUSSIANS; ++i) {
         vec2 center = gauss_centers[i];
@@ -499,40 +509,32 @@ vec3 render_scene(vec2 pixel_xy) {
         }
 
         for(int i = 1; i < n_particles; i++) {
-            vec2 particle_pos = particles[i].pos;
-            float dist = dist_sqr(pixel_xy, particle_pos);
+            float dist = dist_sqr(pixel_xy, particles[i].pos);
             if(dist < min_dist) {
                 min_dist = dist;
                 min_dist_index = i;
             }
-            min_dist = min(min_dist, dist_sqr(pixel_xy, particle_pos));
-
-            // Add gaussian image for a specific particle (e.g., particle 1)
-            // if(i == 1) {
-                // Transform pixel coordinates relative to particle position
-                vec2 gaussian_coord = (pixel_xy - particle_pos) * 20.0 + iResolution.xy / 2.0;
-
-                // Only render within a certain radius of the particle
-                float dist_to_particle = length(pixel_xy - particle_pos);
-                if(dist_to_particle < 0.1) { // Adjust radius as needed
-                    vec3 gaussian_color = gaussianImage(gaussian_coord);
-                    // Blend gaussian color with background
-                    col = mix(col, gaussian_color, 1.0);
-                }
-            // }
         }
 
         min_dist = sqrt(min_dist);
 
+        const float radius = 0.05;
+        if(min_dist_index == 1) { // render bird
+            vec2 particle_pos = particles[1].pos;
+            // Transform pixel coordinates relative to particle position
+            vec2 gaussian_coord = (pixel_xy - particle_pos) * 20.0 + iResolution.xy / 2.0;
+
+            // Only render within a certain radius of the particle
+            float dist_to_particle = length(pixel_xy - particle_pos);
+            if(dist_to_particle < 0.1) { // Adjust radius as needed
+                vec3 gaussian_color = gaussianImage(gaussian_coord, 0);
+                // Blend gaussian color with background
+                col = mix(col, gaussian_color, 1.0);
+            }
         // Only render regular particles for non-gaussian particles
-        const float radius = 0.1;
-        if(min_dist_index != 1) {
-            // col = mix(col, vec3(180, 164, 105) / 255., remap01(min_dist, radius, radius - pixel_size));
-        }
+        } else
+            col = mix(col, vec3(180, 164, 105) / 255., remap01(min_dist, radius, radius - pixel_size));
     }
-    //     col = mix(col, vec3(180, 164, 105) / 255., remap01(min_dist, radius, radius - pixel_size));
-    //     // col = mix(col, vec3(180, 164, 105) / 255., remap01(min_dist, radius, radius - pixel_size));
-    // }
 
     // Render All springs
     {
