@@ -80,9 +80,9 @@ const float ground_collision_dist = 0.1;
 const vec2 gravity = vec2(0.0, -1);
 
 // Define n_rope rope particles and add one extra "mouse particle".
-const int MAX_PARTICLES = 20;
+const int MAX_PARTICLES = 30;
 const int MAX_SPRINGS = 30;
-
+const int STARTING_SPRINGS = 3;
 //0: mouse particle
 //1...5: rope particles
 int n_particles;
@@ -152,18 +152,43 @@ void init_state(void) {
         springs[4] = add_spring(4, 5, 1.0 / 100.0); // fourth to fifth rope particle
     } else {
         // TODO: add initial states
-        n_particles = 4;
-        particles[1].pos = vec2(-1., 0.25);
+        n_particles = 5;
+        
+        // Bird
+        particles[1].pos = vec2(-1.25, -.1);
         particles[1].vel = vec2(0.);
-        particles[2].pos = vec2(-1.25, .5);
+
+        // Slingshot
+        particles[2].pos = vec2(-1.5, 0.2);
         particles[2].vel = vec2(0.);
-        particles[3].pos = vec2(-0.75, 0.);
+        particles[3].pos = vec2(-1., -.4);
         particles[3].vel = vec2(0.);
 
-        n_springs = 3;
+        // Pig
+        particles[4].pos = vec2(1.1, -0.4);
+
+        n_springs = STARTING_SPRINGS;
         springs[1] = add_spring(1, 2, 1.0 / 1000.0);
         springs[2] = add_spring(1, 3, 1.0 / 1000.0);
 
+        // Blocks
+        vec2 centers[4] = vec2[](vec2(0.4, -0.3), vec2(0.8, -0.3), vec2(0.6, 0.1), vec2(1.4, -0.3));
+        for (int i = 0; i < 4; i++) {
+            particles[n_particles].pos = centers[i] + vec2(0.1, 0.1);
+            particles[n_particles+1].pos = centers[i] + vec2(-0.1, 0.1);
+            particles[n_particles+2].pos = centers[i] + vec2(0.1, -0.1);
+            particles[n_particles+3].pos = centers[i] + vec2(-0.1, -0.1);
+
+            springs[n_springs] = add_spring(n_particles, n_particles+1, 1.0 / 1000.0);
+            springs[n_springs+1] = add_spring(n_particles+1, n_particles+2, 1.0 / 1000.0);
+            springs[n_springs+2] = add_spring(n_particles+2, n_particles+3, 1.0 / 1000.0);
+            springs[n_springs+3] = add_spring(n_particles+3, n_particles, 1.0 / 1000.0);
+            springs[n_springs+4] = add_spring(n_particles, n_particles+2, 1.0 / 1000.0); 
+            springs[n_springs+5] = add_spring(n_particles+1, n_particles+3, 1.0 / 1000.0); 
+            
+            n_particles = n_particles + 4;
+            n_springs = n_springs + 6;
+        }
     }
     current_add_particle = initial_particles;
 }
@@ -354,7 +379,9 @@ void solve_ground_constraint(int i, float ground_collision_dist, float dt) {
     if(denom == 0.0)
         return;
     float lambda = numer / denom;
-    particles[i].pos += lambda * particles[i].inv_mass * grad;
+
+    // Add friction to ground
+    particles[i].pos += lambda * particles[i].inv_mass * vec2(grad.x * .1, grad.y);
 }
 
 float boundary_constraint(vec2 p, vec2 bound) {
@@ -518,7 +545,7 @@ vec3 render_scene(vec2 pixel_xy) {
 
         min_dist = sqrt(min_dist);
 
-        const float radius = 0.05;
+        const float radius = 0.1;
         if(min_dist_index == 1) { // render bird
             vec2 particle_pos = particles[1].pos;
             // Transform pixel coordinates relative to particle position
@@ -531,8 +558,21 @@ vec3 render_scene(vec2 pixel_xy) {
                 // Blend gaussian color with background
                 col = mix(col, gaussian_color, 1.0);
             }
+        } else if(min_dist_index == 4) { // render bird
+            vec2 particle_pos = particles[4].pos;
+            // Transform pixel coordinates relative to particle position
+            vec2 gaussian_coord = (pixel_xy - particle_pos) * 20.0 + iResolution.xy / 2.0;
+
+            // Only render within a certain radius of the particle
+            float dist_to_particle = length(pixel_xy - particle_pos);
+            if(dist_to_particle < 0.1) { // Adjust radius as needed
+                vec3 gaussian_color = gaussianImage(gaussian_coord, 1);
+                // Blend gaussian color with background
+                col = mix(col, gaussian_color, 1.0);
+            }
         // Only render regular particles for non-gaussian particles
-        } else
+        } 
+        else
             col = mix(col, vec3(180, 164, 105) / 255., remap01(min_dist, radius, radius - pixel_size));
     }
 
@@ -544,15 +584,27 @@ vec3 render_scene(vec2 pixel_xy) {
             min_dist = dist_to_segment(pixel_xy, particles[0].pos, particles[selected_particle].pos);
         }
 
-        for(int i = 1; i < n_springs; i++) {
+        vec3 color = vec3(14, 105, 146) / 255.;
+        float opacity = 0.25;
+        float thickness = 0.01;
+        for(int i = 1; i < STARTING_SPRINGS; i++) {
             int a = springs[i].a;
             int b = springs[i].b;
             min_dist = min(min_dist, dist_to_segment(pixel_xy, particles[a].pos, particles[b].pos));
         }
 
-        const float thickness = 0.01;
+        for (int i = STARTING_SPRINGS; i < n_springs; i++) {
+            int a = springs[i].a;
+            int b = springs[i].b;
+            if (dist_to_segment(pixel_xy, particles[a].pos, particles[b].pos) < min_dist){
+                min_dist = dist_to_segment(pixel_xy, particles[a].pos, particles[b].pos);
+                color = vec3(180, 164, 105) / 255.;
+                thickness = .1;
+                opacity = 1.;
+            }
+        }
 
-        col = mix(col, vec3(14, 105, 146) / 255., 0.25 * remap01(min_dist, thickness, thickness - pixel_size));
+        col = mix(col, color, opacity * remap01(min_dist, thickness, thickness - pixel_size));
     }
 
     // col.z = 1.0;
