@@ -83,10 +83,11 @@ const vec2 gravity = vec2(0.0, -1);
 const int MAX_PARTICLES = 30;
 const int MAX_SPRINGS = 30;
 
-const int STARTING_PARTICLES = 5;
+const int STARTING_PARTICLES = 6;
 const int STARTING_SPRINGS = 3; // rest of the springs are used to bind particles for blocks
 const int NUM_BLOCKS = 4;
 float MOUSE_RELEASED_TIME = -1.;
+const float RELEASE_LATENCY = 0.1;
 bool LAUNCHING = false;
 
 //0: mouse particle
@@ -137,12 +138,13 @@ void init_state(void) {
     particles[1].pos = vec2(-1.25, -.1);
     particles[1].vel = vec2(0.);
     // Slingshot
-    particles[2].pos = vec2(-1.35, 0.2);
+    particles[2].pos = vec2(-1.25, 0.2);
     particles[2].vel = vec2(0.);
-    particles[3].pos = vec2(-1.15, -.4);
+    particles[3].pos = vec2(-1.25, -.4);
     particles[3].vel = vec2(0.);
     // Pig
     particles[4].pos = vec2(1.1, -0.4);
+    particles[5].pos = vec2(0.6, 0.4);
 
     n_springs = STARTING_SPRINGS;
     springs[1] = add_spring(1, 2, 1.0 / 1000.0);
@@ -205,7 +207,7 @@ void load_state() {
     }
 
     // check if the bird is now launching
-    if(MOUSE_RELEASED_TIME > 0.0 && iTime > MOUSE_RELEASED_TIME + .15) {
+    if(MOUSE_RELEASED_TIME > 0.0 && iTime > MOUSE_RELEASED_TIME + RELEASE_LATENCY) {
         LAUNCHING = true;
     }
 
@@ -542,7 +544,7 @@ vec3 render_scene(vec2 pixel_xy) {
 
         const float radius = 0.1;
         if(min_dist_index == 1) { // render bird
-            vec2 particle_pos = particles[1].pos;
+            vec2 particle_pos = particles[min_dist_index].pos;
             // Transform pixel coordinates relative to particle position
             vec2 gaussian_coord = (pixel_xy - particle_pos) * 20.0 + iResolution.xy / 2.0;
 
@@ -553,8 +555,8 @@ vec3 render_scene(vec2 pixel_xy) {
                 // Blend gaussian color with background
                 col = mix(col, gaussian_color, 1.0);
             }
-        } else if(min_dist_index == 4) { // render pig
-            vec2 particle_pos = particles[4].pos;
+        } else if(min_dist_index == 4 || min_dist_index == 5) { // render pig
+            vec2 particle_pos = particles[min_dist_index].pos;
             // Transform pixel coordinates relative to particle position
             vec2 gaussian_coord = (pixel_xy - particle_pos) * 20.0 + iResolution.xy / 2.0;
 
@@ -574,7 +576,7 @@ vec3 render_scene(vec2 pixel_xy) {
     {
         float min_dist = 1e9;
 
-        if(iMouse.z == 1.) {
+        if(iMouse.z == 1. && MOUSE_RELEASED_TIME == -1.) {
             min_dist = dist_to_segment(pixel_xy, particles[0].pos, particles[selected_particle].pos);
         }
 
