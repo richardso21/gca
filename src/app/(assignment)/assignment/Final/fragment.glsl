@@ -10,7 +10,7 @@ uniform vec2 iResolution;
 uniform vec4 iMouse;
 uniform sampler2D iChannel0;
 
-const bool CUSTOM = true;
+// const bool CUSTOM = true;
 
 float remap01(float inp, float inp_start, float inp_end) {
     return clamp((inp - inp_start) / (inp_end - inp_start), 0.0, 1.0);
@@ -132,70 +132,46 @@ Spring add_spring(int a, int b, float inv_stiffness) {
 
 void init_state(void) {
     MOUSE_RELEASED_TIME = -1.;
-    if(!CUSTOM) {
-        n_particles = 6;
-        n_springs = 5;
+    n_particles = STARTING_PARTICLES;
+    // Bird
+    particles[1].pos = vec2(-1.25, -.1);
+    particles[1].vel = vec2(0.);
+    // Slingshot
+    particles[2].pos = vec2(-1.35, 0.2);
+    particles[2].vel = vec2(0.);
+    particles[3].pos = vec2(-1.15, -.4);
+    particles[3].vel = vec2(0.);
+    // Pig
+    particles[4].pos = vec2(1.1, -0.4);
 
-        //particle 0 is the mouse particle and will be set later
-        particles[1].pos = vec2(-0.6, 0.5);
-        particles[1].vel = vec2(0.0);
-        particles[2].pos = vec2(-0.3, 0.5);
-        particles[2].vel = vec2(0.0);
-        particles[3].pos = vec2(-0, 0.5);
-        particles[3].vel = vec2(0.0);
-        particles[4].pos = vec2(0.3, 0.5);
-        particles[4].vel = vec2(0.0);
-        particles[5].pos = vec2(0.6, 0.5);
-        particles[5].vel = vec2(0.0);
+    n_springs = STARTING_SPRINGS;
+    springs[1] = add_spring(1, 2, 1.0 / 1000.0);
+    springs[2] = add_spring(1, 3, 1.0 / 1000.0);
 
-        // Springs between adjacent rope particles
-        //spring 0 is the mouse particle to the first rope particle
-        springs[1] = add_spring(1, 2, 1.0 / 100.0); // first to second rope particle
-        springs[2] = add_spring(2, 3, 1.0 / 100.0); // second to third rope particle
-        springs[3] = add_spring(3, 4, 1.0 / 100.0); // third to fourth rope particle
-        springs[4] = add_spring(4, 5, 1.0 / 100.0); // fourth to fifth rope particle
-    } else {
-        n_particles = STARTING_PARTICLES;
-        // Bird
-        particles[1].pos = vec2(-1.25, -.1);
-        particles[1].vel = vec2(0.);
-        // Slingshot
-        particles[2].pos = vec2(-1.5, 0.2);
-        particles[2].vel = vec2(0.);
-        particles[3].pos = vec2(-1., -.4);
-        particles[3].vel = vec2(0.);
-        // Pig
-        particles[4].pos = vec2(1.1, -0.4);
-
-        n_springs = STARTING_SPRINGS;
-        springs[1] = add_spring(1, 2, 1.0 / 1000.0);
-        springs[2] = add_spring(1, 3, 1.0 / 1000.0);
-
-        // Blocks
-        vec2 block_centers[NUM_BLOCKS] = vec2[](vec2(0.4, -0.3), vec2(0.8, -0.3), vec2(0.6, 0.1), vec2(1.4, -0.3));
-        for(int i = 0; i < NUM_BLOCKS; i++) {
-            // Blocks are created by binding round particles together
-            particles[n_particles].pos = block_centers[i] + vec2(0.1, 0.1);
-            particles[n_particles + 1].pos = block_centers[i] + vec2(-0.1, 0.1);
-            particles[n_particles + 2].pos = block_centers[i] + vec2(0.1, -0.1);
-            particles[n_particles + 3].pos = block_centers[i] + vec2(-0.1, -0.1);
-            // ensure the blocks aren't moving until we release the bird
-            // (otherwise they will just start drifting around)
-            for(int j = 0; j < 4; j++) {
-                particles[n_particles + j].vel = vec2(0.);
-            }
-
-            // bind these 4 particles w/ "infinite" stiffness
-            springs[n_springs] = add_spring(n_particles, n_particles + 1, 0.0);
-            springs[n_springs + 1] = add_spring(n_particles + 1, n_particles + 2, 0.0);
-            springs[n_springs + 2] = add_spring(n_particles + 2, n_particles + 3, 0.0);
-            springs[n_springs + 3] = add_spring(n_particles + 3, n_particles, 0.0);
-            springs[n_springs + 4] = add_spring(n_particles, n_particles + 2, 0.0);
-            springs[n_springs + 5] = add_spring(n_particles + 1, n_particles + 3, 0.0);
-
-            n_particles = n_particles + 4;
-            n_springs = n_springs + 6;
+    // Blocks
+    vec2 block_centers[NUM_BLOCKS] = vec2[](vec2(0.4, -0.3), vec2(0.8, -0.3), vec2(0.6, 0.1), vec2(1.4, -0.3));
+    for(int i = 0; i < NUM_BLOCKS; i++) {
+        // Blocks are created by binding round particles together
+        particles[n_particles].pos = block_centers[i] + vec2(0.1, 0.1);
+        particles[n_particles + 1].pos = block_centers[i] + vec2(-0.1, 0.1);
+        particles[n_particles + 2].pos = block_centers[i] + vec2(0.1, -0.1);
+        particles[n_particles + 3].pos = block_centers[i] + vec2(-0.1, -0.1);
+        // ensure the blocks aren't moving until we release the bird
+        // (otherwise they will just start drifting around)
+        for(int j = 0; j < 4; j++) {
+            particles[n_particles + j].vel = vec2(0.);
         }
+
+        // bind these 4 particles w/ "infinite" stiffness
+        springs[n_springs] = add_spring(n_particles, n_particles + 1, 0.0);
+        springs[n_springs + 1] = add_spring(n_particles + 1, n_particles + 2, 0.0);
+        springs[n_springs + 2] = add_spring(n_particles + 2, n_particles + 3, 0.0);
+        springs[n_springs + 3] = add_spring(n_particles + 3, n_particles, 0.0);
+        springs[n_springs + 4] = add_spring(n_particles, n_particles + 2, 0.0);
+        springs[n_springs + 5] = add_spring(n_particles + 1, n_particles + 3, 0.0);
+
+        n_particles = n_particles + 4;
+        n_springs = n_springs + 6;
     }
 }
 
@@ -249,7 +225,7 @@ void load_state() {
         particles[i].inv_mass = 1.0; // all particles have mass 1.0
         particles[i].is_fixed = false;
 
-        if(!CUSTOM && (i == 1 || i == 5) || CUSTOM && (i == 2 || i == 3)) {
+        if(i == 2 || i == 3) {
             particles[i].inv_mass = 0.0; // fixed particles at the ends of the rope
             particles[i].is_fixed = true; // make sure the first and last particles are fixed
         }
@@ -363,10 +339,9 @@ void solve_collision_constraint(int i, int j, float collision_dist, float dt) {
 float phi(vec2 p) {
     const float PI = 3.14159265359;
     //let's do sin(x)+0.5
-    if(!CUSTOM)
-        return p.y - (0.1 * sin(p.x * 2. * PI) - 0.5);
-    else
-        return p.y + 0.5;
+    // if(!CUSTOM)
+    //     return p.y - (0.1 * sin(p.x * 2. * PI) - 0.5);
+    return p.y + 0.5;
 }
 
 float ground_constraint(vec2 p, float ground_collision_dist) {
@@ -448,8 +423,7 @@ void solve_constraints(float dt) {
     }
     for(int i = 1; i < n_particles; i++) {
         solve_ground_constraint(i, ground_collision_dist, dt);
-        if(CUSTOM)
-            solve_boundary_constraint(i, vec2(1.5, 0.9), dt);
+        // solve_boundary_constraint(i, vec2(1.5, 0.9), dt);
     }
 }
 
