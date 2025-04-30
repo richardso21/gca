@@ -82,7 +82,13 @@ const vec2 gravity = vec2(0.0, -1);
 // Define n_rope rope particles and add one extra "mouse particle".
 const int MAX_PARTICLES = 30;
 const int MAX_SPRINGS = 30;
-const int STARTING_SPRINGS = 3;
+
+const int STARTING_PARTICLES = 5;
+const int STARTING_SPRINGS = 3; // rest of the springs are used to bind particles for blocks
+const int NUM_BLOCKS = 4;
+float MOUSE_RELEASED_TIME = -1.;
+bool LAUNCHING = false;
+
 //0: mouse particle
 //1...5: rope particles
 int n_particles;
@@ -114,7 +120,6 @@ struct Spring {
 Spring springs[MAX_SPRINGS];
 int n_springs;
 int selected_particle = -1;
-int current_add_particle = -1;
 
 Spring add_spring(int a, int b, float inv_stiffness) {
     Spring s;
@@ -125,9 +130,8 @@ Spring add_spring(int a, int b, float inv_stiffness) {
     return s;
 }
 
-const int initial_particles = CUSTOM ? 9 : 6;
-
 void init_state(void) {
+    MOUSE_RELEASED_TIME = -1.;
     if(!CUSTOM) {
         n_particles = 6;
         n_springs = 5;
@@ -151,19 +155,15 @@ void init_state(void) {
         springs[3] = add_spring(3, 4, 1.0 / 100.0); // third to fourth rope particle
         springs[4] = add_spring(4, 5, 1.0 / 100.0); // fourth to fifth rope particle
     } else {
-        // TODO: add initial states
-        n_particles = 5;
-        
+        n_particles = STARTING_PARTICLES;
         // Bird
         particles[1].pos = vec2(-1.25, -.1);
         particles[1].vel = vec2(0.);
-
         // Slingshot
         particles[2].pos = vec2(-1.5, 0.2);
         particles[2].vel = vec2(0.);
         particles[3].pos = vec2(-1., -.4);
         particles[3].vel = vec2(0.);
-
         // Pig
         particles[4].pos = vec2(1.1, -0.4);
 
@@ -172,25 +172,31 @@ void init_state(void) {
         springs[2] = add_spring(1, 3, 1.0 / 1000.0);
 
         // Blocks
-        vec2 centers[4] = vec2[](vec2(0.4, -0.3), vec2(0.8, -0.3), vec2(0.6, 0.1), vec2(1.4, -0.3));
-        for (int i = 0; i < 4; i++) {
-            particles[n_particles].pos = centers[i] + vec2(0.1, 0.1);
-            particles[n_particles+1].pos = centers[i] + vec2(-0.1, 0.1);
-            particles[n_particles+2].pos = centers[i] + vec2(0.1, -0.1);
-            particles[n_particles+3].pos = centers[i] + vec2(-0.1, -0.1);
+        vec2 block_centers[NUM_BLOCKS] = vec2[](vec2(0.4, -0.3), vec2(0.8, -0.3), vec2(0.6, 0.1), vec2(1.4, -0.3));
+        for(int i = 0; i < NUM_BLOCKS; i++) {
+            // Blocks are created by binding round particles together
+            particles[n_particles].pos = block_centers[i] + vec2(0.1, 0.1);
+            particles[n_particles + 1].pos = block_centers[i] + vec2(-0.1, 0.1);
+            particles[n_particles + 2].pos = block_centers[i] + vec2(0.1, -0.1);
+            particles[n_particles + 3].pos = block_centers[i] + vec2(-0.1, -0.1);
+            // ensure the blocks aren't moving until we release the bird
+            // (otherwise they will just start drifting around)
+            for(int j = 0; j < 4; j++) {
+                particles[n_particles + j].vel = vec2(0.);
+            }
 
-            springs[n_springs] = add_spring(n_particles, n_particles+1, 1.0 / 1000.0);
-            springs[n_springs+1] = add_spring(n_particles+1, n_particles+2, 1.0 / 1000.0);
-            springs[n_springs+2] = add_spring(n_particles+2, n_particles+3, 1.0 / 1000.0);
-            springs[n_springs+3] = add_spring(n_particles+3, n_particles, 1.0 / 1000.0);
-            springs[n_springs+4] = add_spring(n_particles, n_particles+2, 1.0 / 1000.0); 
-            springs[n_springs+5] = add_spring(n_particles+1, n_particles+3, 1.0 / 1000.0); 
-            
+            // bind these 4 particles w/ "infinite" stiffness
+            springs[n_springs] = add_spring(n_particles, n_particles + 1, 0.0);
+            springs[n_springs + 1] = add_spring(n_particles + 1, n_particles + 2, 0.0);
+            springs[n_springs + 2] = add_spring(n_particles + 2, n_particles + 3, 0.0);
+            springs[n_springs + 3] = add_spring(n_particles + 3, n_particles, 0.0);
+            springs[n_springs + 4] = add_spring(n_particles, n_particles + 2, 0.0);
+            springs[n_springs + 5] = add_spring(n_particles + 1, n_particles + 3, 0.0);
+
             n_particles = n_particles + 4;
             n_springs = n_springs + 6;
         }
     }
-    current_add_particle = initial_particles;
 }
 
 vec2 screen_to_xy(vec2 coord) {
@@ -204,12 +210,28 @@ bool is_initializing() {
 // Load rope particles from the previous frame and update the mouse particle.
 void load_state() {
     //0,0: (num_particles, num_springs, selected_particle)
-
     vec4 data = texelFetch(iChannel0, ivec2(0, 0), 0);
     n_particles = int(data.x);
     n_springs = int(data.y);
     selected_particle = int(data.z);
-    current_add_particle = int(data.w);
+    MOUSE_RELEASED_TIME = data.w;
+
+    // left-click mouse will only drag the angry bird, disable mouse after
+    if(iMouse.z == 1. && MOUSE_RELEASED_TIME == -1.) {
+        if(selected_particle == -1) {
+            selected_particle = 1;
+        }
+    } else {
+        // keep track of when we first release the mouse
+        if(selected_particle != -1)
+            MOUSE_RELEASED_TIME = iTime;
+        selected_particle = -1;
+    }
+
+    // check if the bird is now launching
+    if(MOUSE_RELEASED_TIME > 0.0 && iTime > MOUSE_RELEASED_TIME + .15) {
+        LAUNCHING = true;
+    }
 
     //initialize mouse particle
     {
@@ -220,7 +242,7 @@ void load_state() {
         particles[mouse_idx].is_fixed = true;
     }
     // Load other particles
-    for(int i = 1; i < n_particles; i++) {
+    for(int i = 1; i < STARTING_PARTICLES; i++) {
         vec4 data = texelFetch(iChannel0, ivec2(i, 0), 0);
         particles[i].pos = data.xy;
         particles[i].vel = data.zw;
@@ -232,34 +254,33 @@ void load_state() {
             particles[i].is_fixed = true; // make sure the first and last particles are fixed
         }
     }
-
-    //select nearest particle to mouse
-    if(iMouse.z == 1.) {
-        if(selected_particle == -1) {
-            selected_particle = nearest_particle(particles[0].pos);
-        }
-    } else {
-        selected_particle = -1;
-    }
-
-    if(iMouse.z == 2.) {
-        particles[current_add_particle].pos = screen_to_xy(iMouse.xy); // update the position of the selected particle
-        particles[current_add_particle].vel = vec2(0.0); // reset velocity to zero when mouse is released
-        particles[current_add_particle].inv_mass = 1.0; // make sure the selected particle is fixed
-        particles[current_add_particle].is_fixed = false; // make sure the selected particle is fixed
-        if(current_add_particle >= n_particles) {
-            // If we reach the maximum number of particles, reset to the first available index.
-            n_particles = current_add_particle + 1; // skip the mouse particle at index 0
-        }
-        current_add_particle++;
-        if(current_add_particle >= MAX_PARTICLES) {
-            current_add_particle = initial_particles;
-        }
+    // Load block particles
+    float block_mass;
+    bool FIX_BLOCK = !LAUNCHING;
+    if(FIX_BLOCK)
+        block_mass = 0.0;
+    else
+        block_mass = 1.0;
+    for(int i = STARTING_PARTICLES; i < n_particles; i++) {
+        vec4 data = texelFetch(iChannel0, ivec2(i, 0), 0);
+        particles[i].pos = data.xy;
+        particles[i].vel = data.zw;
+        particles[i].inv_mass = block_mass; // all particles have mass 1.0
+        particles[i].is_fixed = FIX_BLOCK;
     }
 
     //load springs
     springs[0] = Spring(0, selected_particle, 0.0, 1.0 / 1000.0); // mouse particle to first rope particle
-    for(int i = 1; i < n_springs; i++) {
+    if(!LAUNCHING) {
+        for(int i = 1; i < STARTING_SPRINGS; i++) {
+            vec4 data = texelFetch(iChannel0, ivec2(i, 1), 0);
+            springs[i].a = int(data.x);
+            springs[i].b = int(data.y);
+            springs[i].restLength = data.z;
+            springs[i].inv_stiffness = data.w;
+        }
+    }
+    for(int i = STARTING_SPRINGS; i < n_springs; i++) {
         vec4 data = texelFetch(iChannel0, ivec2(i, 1), 0);
         springs[i].a = int(data.x);
         springs[i].b = int(data.y);
@@ -531,7 +552,7 @@ vec3 render_scene(vec2 pixel_xy) {
         float min_dist = 1e9;
         int min_dist_index = 0;
 
-        if(iMouse.z == 1.) {
+        if(iMouse.z == 1. && MOUSE_RELEASED_TIME == -1.) {
             min_dist = dist_sqr(pixel_xy, particles[0].pos);
         }
 
@@ -558,7 +579,7 @@ vec3 render_scene(vec2 pixel_xy) {
                 // Blend gaussian color with background
                 col = mix(col, gaussian_color, 1.0);
             }
-        } else if(min_dist_index == 4) { // render bird
+        } else if(min_dist_index == 4) { // render pig
             vec2 particle_pos = particles[4].pos;
             // Transform pixel coordinates relative to particle position
             vec2 gaussian_coord = (pixel_xy - particle_pos) * 20.0 + iResolution.xy / 2.0;
@@ -571,8 +592,7 @@ vec3 render_scene(vec2 pixel_xy) {
                 col = mix(col, gaussian_color, 1.0);
             }
         // Only render regular particles for non-gaussian particles
-        } 
-        else
+        } else
             col = mix(col, vec3(180, 164, 105) / 255., remap01(min_dist, radius, radius - pixel_size));
     }
 
@@ -593,10 +613,10 @@ vec3 render_scene(vec2 pixel_xy) {
             min_dist = min(min_dist, dist_to_segment(pixel_xy, particles[a].pos, particles[b].pos));
         }
 
-        for (int i = STARTING_SPRINGS; i < n_springs; i++) {
+        for(int i = STARTING_SPRINGS; i < n_springs; i++) {
             int a = springs[i].a;
             int b = springs[i].b;
-            if (dist_to_segment(pixel_xy, particles[a].pos, particles[b].pos) < min_dist){
+            if(dist_to_segment(pixel_xy, particles[a].pos, particles[b].pos) < min_dist) {
                 min_dist = dist_to_segment(pixel_xy, particles[a].pos, particles[b].pos);
                 color = vec3(180, 164, 105) / 255.;
                 thickness = .1;
@@ -616,9 +636,9 @@ vec4 output_color(vec2 pixel_ij) {
     int j = int(pixel_ij.y);
 
     if(j == 0) {
-        // (0,0): (num_particles, num_springs, selected_particle)
+        // (0,0): (num_particles, num_springs, selected_particle, MOUSE_RELEASED_TIME)
         if(i == 0) {
-            return vec4(float(n_particles), float(n_springs), float(selected_particle), float(current_add_particle));
+            return vec4(float(n_particles), float(n_springs), float(selected_particle), MOUSE_RELEASED_TIME);
         } else if(i < n_particles) {
             //a particle
             return vec4(particles[i].pos, particles[i].vel);
